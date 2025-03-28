@@ -28,6 +28,8 @@ var ErrInvalidRedisRetryBackoff = errors.New("redis retry backoff must be greate
 
 var ErrInvalidHTTPClient = errors.New("http client is required")
 
+var ErrInvalidHashRing = errors.New("hash ring is required")
+
 type ErrNodePropertyNotFound struct {
 	property string
 }
