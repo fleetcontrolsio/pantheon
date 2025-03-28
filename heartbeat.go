@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/fleetcontrolsio/pantheon/pkg/hashring"
 	"github.com/sourcegraph/conc/pool"
 )
 
@@ -106,7 +107,7 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 				fmt.Printf("error updating node state: %s\n", err)
 				return
 			}
-			
+
 			// Update the node status in the hash ring
 			if c.hashRing != nil {
 				err = c.hashRing.UpdateNodeStatus(event.NodeID, hashring.NodeStatusActive)
@@ -144,7 +145,7 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 					fmt.Printf("error updating node state: %s\n", err)
 					return
 				}
-				
+
 				// Update the node status in the hash ring
 				if c.hashRing != nil {
 					err = c.hashRing.UpdateNodeStatus(event.NodeID, hashring.NodeStatusInactive)
@@ -160,7 +161,7 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 						NodeID: event.NodeID,
 					}
 				}
-				
+
 				// Trigger rebalancing after a node is marked dead
 				go func() {
 					// Get all keys assigned to this node
@@ -170,7 +171,7 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 						fmt.Printf("error getting keys for dead node: %s\n", err)
 						return
 					}
-					
+
 					if len(keys) > 0 {
 						fmt.Printf("Redistributing %d keys from dead node %s\n", len(keys), event.NodeID)
 						if err := c.Distribute(keys); err != nil {

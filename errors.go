@@ -16,6 +16,8 @@ var ErrInvalidHeartbeatTimeout = errors.New("heartbeat timeout must be greater t
 
 var ErrInvalidHeartbeatConcurrency = errors.New("heartbeat concurrency must be greater than 0")
 
+var ErrInvalidHeartbeatMaxFailures = errors.New("heartbeat max failures must be greater than 0")
+
 var ErrInvalidRedisHost = errors.New("redis host is required")
 
 var ErrInvalidRedisPort = errors.New("redis port is required")
@@ -30,10 +32,12 @@ var ErrInvalidHTTPClient = errors.New("http client is required")
 
 var ErrInvalidHashRing = errors.New("hash ring is required")
 
+// ErrNodeNotFound is return when a node property is not found in the storage
 type ErrNodePropertyNotFound struct {
 	property string
 }
 
+// NewErrNodePropertyNotFound creates a new ErrNodePropertyNotFound
 func NewErrNodePropertyNotFound(property string) *ErrNodePropertyNotFound {
 	return &ErrNodePropertyNotFound{property: property}
 }

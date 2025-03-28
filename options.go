@@ -40,12 +40,29 @@ type Options struct {
 	hashringReplicaCount int
 }
 
+// NewOptions creates a new Options instance with default values
+// The default values are:
+// - prefix: "pantheon"
+// - name: "my-cluster"
+// - hearbeatInterval: 30 seconds
+// - heartbeatTimeout: 30 seconds
+// - heartbeatConcurrency: 2
+// - heartbeatMaxFailures: 3
+// - redisHost: "localhost"
+// - redisPort: 6379
+// - redisDB: 0
+// - redisMaxRetries: 5
+// - redisRetryBackoff: 20 seconds
+// - hashringReplicaCount: 10
+// - httpClient: nil
+// - hashRing: nil
 func NewOptions() *Options {
 	return &Options{
 		prefix:               "pantheon",
-		name:                 "mypantheon",
+		name:                 "my-cluster",
 		hearbeatInterval:     30 * time.Second,
 		heartbeatConcurrency: 2,
+		heartbeatMaxFailures: 5,
 		redisHost:            "localhost",
 		redisPort:            6379,
 		redisDB:              0,
@@ -77,6 +94,11 @@ func (o *Options) WithHeartbeatTimeout(timeout time.Duration) *Options {
 
 func (o *Options) WithHearbeatConcurrency(concurrency int) *Options {
 	o.heartbeatConcurrency = concurrency
+	return o
+}
+
+func (o *Options) WithHeartbeatMaxFailures(maxFailures int) *Options {
+	o.heartbeatMaxFailures = maxFailures
 	return o
 }
 
@@ -144,6 +166,10 @@ func (o *Options) Validate() error {
 
 	if o.heartbeatConcurrency <= 0 {
 		return ErrInvalidHeartbeatConcurrency
+	}
+
+	if o.heartbeatMaxFailures <= 0 {
+		return ErrInvalidHeartbeatMaxFailures
 	}
 
 	if o.redisHost == "" {
