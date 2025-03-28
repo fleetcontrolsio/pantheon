@@ -1,6 +1,10 @@
 package pantheon
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/redis/go-redis/v9"
+)
 
 // Distribute distributes keys to the nodes in the cluster
 // This should be called after a nodes has joined or left the cluster to
@@ -24,19 +28,19 @@ func (c *Pantheon) Distribute(keys []string) error {
 
 	// Use consistent hashing to distribute keys
 	distribution := make(map[string][]string)
-	
+
 	for _, key := range keys {
 		// Get the node for this key using consistent hashing
 		node, err := c.hashRing.GetNode(key)
 		if err != nil {
 			return fmt.Errorf("error getting node for key %s: %w", key, err)
 		}
-		
+
 		// Initialize the slice if it doesn't exist
 		if distribution[node.ID] == nil {
 			distribution[node.ID] = make([]string, 0)
 		}
-		
+
 		// Add the key to the node's distribution
 		distribution[node.ID] = append(distribution[node.ID], key)
 
