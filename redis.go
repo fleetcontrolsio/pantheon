@@ -17,6 +17,11 @@ type RedisClient interface {
 	HGetAll(ctx context.Context, key string) *redis.MapStringStringCmd
 	HIncrBy(ctx context.Context, key, field string, incr int64) *redis.IntCmd
 	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
+	// Added for key distribution
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+	Get(ctx context.Context, key string) *redis.StringCmd
+	SAdd(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
+	SMembers(ctx context.Context, key string) *redis.StringSliceCmd
 }
 
 type RedisClientOptions struct {

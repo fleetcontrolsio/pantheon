@@ -13,26 +13,6 @@ type Storage struct {
 	redis     RedisClient
 }
 
-// Member represents a node in the cluster
-type Member struct {
-	// ID; the unique identifier for the node
-	ID string
-	// Address; the address of the node
-	Address string
-	// Path; the path on the node to make the heartbeat request to
-	Path string
-	// JoinedAt; the time the node joined the cluster
-	JoinedAt string
-	// LastHeartbeat; the last time a heartbeat was received from the node
-	LastHeartbeat string
-	// HearbeatCount; the number of heartbeat requests sent to the node
-	HeartbeatCount string
-	// HeartbeatFailures; the number of failed heartbeat requests
-	HeartbeatFailures string
-	// State; the state of the node: alive, dead, or suspect
-	State string
-}
-
 func NewStorage(prefix string, namespace string, client RedisClient) *Storage {
 	return &Storage{
 		prefix:    prefix,
@@ -66,7 +46,7 @@ func (s *Storage) AddNode(ctx context.Context, nodeID, address, path string, por
 		"last_heartbeat", joinedAt,
 		"hearbeat_count", "0",
 		"heartbeat_failure_count", "0",
-		"state", "alive")
+		"state", MemberAlive)
 	if err := reply.Err(); err != nil {
 		return err
 	}
@@ -115,6 +95,17 @@ func (s *Storage) IncrementHeartbeatFailures(ctx context.Context, nodeID string)
 	key := s.makeKey("nodes", nodeID)
 
 	reply := s.redis.HIncrBy(ctx, key, "hearbeat_failure_count", 1)
+	if err := reply.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s Storage) ResetHeartbeatFailures(ctx context.Context, nodeID string) error {
+	key := s.makeKey("nodes", nodeID)
+
+	reply := s.redis.HSet(ctx, key, "heartbeat_failure_count", "0")
 	if err := reply.Err(); err != nil {
 		return err
 	}
@@ -180,7 +171,7 @@ func (s *Storage) GetNode(ctx context.Context, nodeID string) (*Member, error) {
 		LastHeartbeat:     lastHeartbeat,
 		HeartbeatCount:    heartbeatCount,
 		HeartbeatFailures: heartbeatFailures,
-		State:             state,
+		State:             MemberState(state),
 	}
 
 	return member, nil
@@ -213,8 +204,28 @@ func (s *Storage) GetNodes(ctx context.Context) ([]Member, error) {
 
 // RemoveNode removes a node from the cluster
 func (s *Storage) RemoveNode(ctx context.Context, nodeID string) error {
-	key := s.makeKey("nodes", nodeID)
+	// Get node keys before deleting the node
+	nodeKeysKey := s.makeKey("nodekeys", nodeID)
+	keys, err := s.redis.SMembers(ctx, nodeKeysKey).Result()
+	if err != nil && err != redis.Nil {
+		return fmt.Errorf("error getting node keys: %w", err)
+	}
 
+	// Remove key mappings for this node
+	for _, key := range keys {
+		keyMapKey := s.makeKey("keymap", key)
+		if err := s.redis.Del(ctx, keyMapKey).Err(); err != nil {
+			return fmt.Errorf("error removing key mapping: %w", err)
+		}
+	}
+
+	// Remove the node keys set
+	if err := s.redis.Del(ctx, nodeKeysKey).Err(); err != nil {
+		return fmt.Errorf("error removing node keys: %w", err)
+	}
+
+	// Remove the node
+	key := s.makeKey("nodes", nodeID)
 	reply := s.redis.Del(ctx, key)
 	if err := reply.Err(); err != nil {
 		return err

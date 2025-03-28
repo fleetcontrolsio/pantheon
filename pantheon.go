@@ -2,8 +2,11 @@ package pantheon
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/fleetcontrolsio/pantheon/pkg/hashring"
 )
 
 type Pantheon struct {
@@ -13,6 +16,8 @@ type Pantheon struct {
 	storage *Storage
 	// http: http client for heartbeat requests
 	http *http.Client
+	// hashRing: the hash ring for the cluster
+	hashRing hashring.Ring
 	// name; the name of the cluster
 	name string
 	// hearbeat; the interval at which the cluster will send heartbeat messages to other nodes
@@ -63,6 +68,14 @@ func New(ctx context.Context, options *Options) (*Pantheon, error) {
 
 	storage := NewStorage(options.prefix, options.name, redisClient)
 
+	// Create a hash ring if one is not provided
+	var ring hashring.Ring
+	if options.hashRing != nil {
+		ring = options.hashRing
+	} else {
+		ring = hashring.NewHashRing(options.hashringReplicaCount)
+	}
+
 	return &Pantheon{
 		ctx:                  ctx,
 		name:                 options.name,
@@ -73,6 +86,8 @@ func New(ctx context.Context, options *Options) (*Pantheon, error) {
 		heartbeatConcurrency: options.heartbeatConcurrency,
 		heartbeatMaxFailures: options.heartbeatMaxFailures,
 		heartbeatEventCh:     make(chan HearbeatEvent),
+		hashRing:             ring,
+		EventsCh:             make(chan PantheonEvent),
 		started:              false,
 	}, nil
 }
@@ -130,21 +145,97 @@ func (c *Pantheon) Destroy() error {
 	return nil
 }
 
-// Distribute distributes keys to the nodes in the cluster
-// This should be called after a nodes has joined or left the cluster to
-// rebalance the keys to available nodes
-func (c *Pantheon) Distribute(keys []string) error {
-	return nil
-}
-
 // Join adds a node to the cluster
 // This should be called when a new node is starting up
 func (c *Pantheon) Join(op *JoinOp) error {
+	if !c.started {
+		return fmt.Errorf("cluster not started")
+	}
+
+	// Use the Pantheon context instead of creating a new one
+	// Check if the node already exists
+	node, err := c.storage.GetNode(c.ctx, op.ID)
+	if err != nil {
+		return err
+	}
+
+	if node != nil {
+		return fmt.Errorf("node %s already exists", op.ID)
+	}
+
+	// Add the node to the cluster
+	addr := fmt.Sprintf("%s:%d", op.Address, op.Port)
+	err = c.storage.AddNode(c.ctx, op.ID, op.Address, op.Path, op.Port)
+	if err != nil {
+		return err
+	}
+	// Add the node to the hash ring
+	err = c.hashRing.AddNode(&hashring.Node{
+		ID:      op.ID,
+		Address: addr,
+		Status:  hashring.NodeStatusActive,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Send a joined event
+	if c.EventsCh != nil {
+		c.EventsCh <- PantheonEvent{
+			Event:  "joined",
+			NodeID: op.ID,
+		}
+	}
+
+	// Immediately ping the node to check its health
+	go func() {
+		if err := c.PingNode(op.ID); err != nil {
+			fmt.Printf("error pinging new node %s: %s\n", op.ID, err)
+		}
+	}()
+
+	fmt.Printf("Node %s (%s) joined the cluster\n", op.ID, addr)
 	return nil
 }
 
 // Leave removes a node from the cluster
 // This should called when a node is shutting down
 func (c *Pantheon) Leave(id string) error {
+	if !c.started {
+		return fmt.Errorf("cluster not started")
+	}
+
+	// Use the Pantheon context instead of creating a new one
+	// Check if the node exists
+	node, err := c.storage.GetNode(c.ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if node == nil {
+		return fmt.Errorf("node %s not found", id)
+	}
+
+	// Remove the node from the cluster
+	err = c.storage.RemoveNode(c.ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Remove the node from the hash ring
+	err = c.hashRing.RemoveNode(id)
+	if err != nil {
+		return err
+	}
+
+	// Send a left event
+	if c.EventsCh != nil {
+		c.EventsCh <- PantheonEvent{
+			Event:  "left",
+			NodeID: id,
+		}
+	}
+
+	fmt.Printf("Node %s left the cluster\n", id)
 	return nil
 }

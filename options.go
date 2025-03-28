@@ -3,6 +3,8 @@ package pantheon
 import (
 	"net/http"
 	"time"
+
+	"github.com/fleetcontrolsio/pantheon/pkg/hashring"
 )
 
 type Options struct {
@@ -32,6 +34,10 @@ type Options struct {
 	redisRetryBackoff time.Duration
 	// The http client for heartbeat requests
 	httpClient *http.Client
+	// hashRing: the hash ring for the cluster
+	hashRing hashring.Ring
+	// hashringReplicaCount: number of virtual nodes per physical node in the hash ring
+	hashringReplicaCount int
 }
 
 func NewOptions() *Options {
@@ -45,6 +51,7 @@ func NewOptions() *Options {
 		redisDB:              0,
 		redisMaxRetries:      5,
 		redisRetryBackoff:    20 * time.Second,
+		hashringReplicaCount: 10, // Default to 10 virtual nodes per physical node
 	}
 }
 
@@ -108,6 +115,16 @@ func (o *Options) WithHTTPClient(client *http.Client) *Options {
 	return o
 }
 
+func (o *Options) WithHashRing(ring hashring.Ring) *Options {
+	o.hashRing = ring
+	return o
+}
+
+func (o *Options) WithHashRingReplicaCount(count int) *Options {
+	o.hashringReplicaCount = count
+	return o
+}
+
 func (o *Options) Validate() error {
 	if o.prefix == "" {
 		return ErrInvalidPrefix
@@ -151,6 +168,10 @@ func (o *Options) Validate() error {
 
 	if o.httpClient == nil {
 		return ErrInvalidHTTPClient
+	}
+
+	if o.hashRing == nil {
+		return ErrInvalidHashRing
 	}
 
 	return nil
