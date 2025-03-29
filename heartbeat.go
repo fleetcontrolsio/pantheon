@@ -102,8 +102,8 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 		}
 
 		// If the node was previously dead or suspect, mark it as alive
-		if node.State != "alive" {
-			if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, "alive"); err != nil {
+		if node.State != MemberAlive {
+			if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, MemberAlive); err != nil {
 				fmt.Printf("error updating node state: %s\n", err)
 				return
 			}
@@ -140,8 +140,8 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 
 		if failures >= c.heartbeatMaxFailures {
 			// Mark the node as dead
-			if node.State != "dead" {
-				if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, "dead"); err != nil {
+			if node.State != MemberDead {
+				if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, MemberDead); err != nil {
 					fmt.Printf("error updating node state: %s\n", err)
 					return
 				}
@@ -180,9 +180,9 @@ func (c *Pantheon) handleHeartbeatEvent(event HearbeatEvent) {
 					}
 				}()
 			}
-		} else if node.State == "alive" {
+		} else if node.State == MemberAlive {
 			// Mark the node as suspect
-			if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, "suspect"); err != nil {
+			if err := c.storage.UpdateNodeState(c.ctx, event.NodeID, MemberSuspect); err != nil {
 				fmt.Printf("error updating node state: %s\n", err)
 				return
 			}
