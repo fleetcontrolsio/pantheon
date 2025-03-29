@@ -8,6 +8,17 @@ const (
 	MemberSuspect MemberState = "suspect"
 )
 
+// MarshalBinary implements the encoding.BinaryMarshaler interface
+func (m MemberState) MarshalBinary() (data []byte, err error) {
+	return []byte(m), nil
+}
+
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface
+func (m *MemberState) UnmarshalBinary(data []byte) error {
+	*m = MemberState(data)
+	return nil
+}
+
 // Member represents a node in the cluster
 type Member struct {
 	// ID; the unique identifier for the node
