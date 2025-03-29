@@ -71,7 +71,7 @@ func (s *Storage) UpdateNodeHeartbeat(ctx context.Context, nodeID string) error 
 }
 
 // UpdateNodeState updates the state of a node
-func (s *Storage) UpdateNodeState(ctx context.Context, nodeID, state string) error {
+func (s *Storage) UpdateNodeState(ctx context.Context, nodeID string, state MemberState) error {
 	key := s.makeKey("nodes", nodeID)
 
 	reply := s.redis.HSet(ctx, key, "state", state)
