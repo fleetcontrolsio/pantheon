@@ -98,7 +98,15 @@ func (c *Pantheon) Start() error {
 	if c.started {
 		return nil
 	}
+
 	c.started = true
+
+	// Add event to the event channel
+	if c.EventsCh != nil {
+		c.EventsCh <- PantheonEvent{
+			Event: "started",
+		}
+	}
 
 	// handle the heartbeat events
 	go func() {
@@ -159,13 +167,9 @@ func (c *Pantheon) Join(op *JoinOp) error {
 		return err
 	}
 
-	if node != nil {
-		return fmt.Errorf("node %s already exists", op.ID)
-	}
-
 	// Add the node to the cluster
 	addr := fmt.Sprintf("%s:%d", op.Address, op.Port)
-	err = c.storage.AddNode(c.ctx, op.ID, op.Address, op.Path, op.Port)
+	err = c.storage.AddNode(c.ctx, node.ID, op.Address, op.Path, op.Port)
 	if err != nil {
 		return err
 	}
