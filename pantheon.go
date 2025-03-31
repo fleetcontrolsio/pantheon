@@ -153,19 +153,13 @@ func (c *Pantheon) Join(op *JoinOp) error {
 		return fmt.Errorf("cluster not started")
 	}
 
-	// Use the Pantheon context instead of creating a new one
-	// Check if the node already exists
-	node, err := c.storage.GetNode(c.ctx, op.ID)
+	// upsert the node in the storage
+	err := c.storage.AddNode(c.ctx, op.ID, op.Address, op.Path, op.Port)
 	if err != nil {
 		return err
 	}
 
-	// Add the node to the cluster
 	addr := fmt.Sprintf("%s:%d", op.Address, op.Port)
-	err = c.storage.AddNode(c.ctx, node.ID, op.Address, op.Path, op.Port)
-	if err != nil {
-		return err
-	}
 	// Add the node to the hash ring
 	err = c.hashRing.AddNode(&hashring.Node{
 		ID:      op.ID,

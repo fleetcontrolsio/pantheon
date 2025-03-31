@@ -28,7 +28,7 @@ func (s *Storage) makeKey(parts ...string) string {
 	return fmt.Sprintf("%s:%s:%s", s.prefix, s.namespace, strings.Join(parts, ":"))
 }
 
-// AddNode adds a new node to the cluster
+// AddNode upserts a node to the cluster
 // The node is identified by its ID.
 // The address and port are used to communicate with the node.
 // The path is the path on the node to make the heartbeat request to.
@@ -36,6 +36,17 @@ func (s *Storage) makeKey(parts ...string) string {
 // The node is added with the current time as the joined_at and last_heartbeat times.
 func (s *Storage) AddNode(ctx context.Context, nodeID, address, path string, port int) error {
 	key := s.makeKey("nodes", nodeID)
+
+	// Check if the node already exists
+	existing, err := s.GetNode(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+
+	if existing != nil {
+		// Update the existing node
+		return s.UpdateNode(ctx, nodeID, address, path, port)
+	}
 
 	joinedAt := fmt.Sprintf("%d", time.Now().Unix())
 
@@ -75,6 +86,22 @@ func (s *Storage) UpdateNodeState(ctx context.Context, nodeID string, state Memb
 	key := s.makeKey("nodes", nodeID)
 
 	reply := s.redis.HSet(ctx, key, "state", state)
+	if err := reply.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateNode updates the address and path of a node
+func (s *Storage) UpdateNode(ctx context.Context, nodeID, address, path string, port int) error {
+	key := s.makeKey("nodes", nodeID)
+	nodeAddress := fmt.Sprintf("%s:%d", address, port)
+	reply := s.redis.HSet(ctx, key,
+		"address", nodeAddress,
+		"path", path,
+	)
+
 	if err := reply.Err(); err != nil {
 		return err
 	}
