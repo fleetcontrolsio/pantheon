@@ -101,13 +101,6 @@ func (c *Pantheon) Start() error {
 
 	c.started = true
 
-	// Add event to the event channel
-	if c.EventsCh != nil {
-		c.EventsCh <- PantheonEvent{
-			Event: "started",
-		}
-	}
-
 	// handle the heartbeat events
 	go func() {
 		for {
